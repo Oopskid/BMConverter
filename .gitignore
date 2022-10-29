@@ -1,0 +1,4 @@
+# Visual Studio output
+*.vs
+**Debug
+**x64

@@ -1,0 +1,18 @@
+{
+  "FileVersion": 2,
+  "Id": "1c5f3801-6f36-46b7-941b-6516d6860261",
+  "Items": [
+    {
+      "Id": "c79cbd15-a454-4001-97fd-f51423fdf732",
+      "Command": "BM"
+    },
+    {
+      "Id": "06f31df5-1ccc-43a7-a122-a2bea3ae302d",
+      "Command": "C:\\Users\\Adam\\Downloads\\akane\\akane\\mdl\\md_earShape.bm"
+    },
+    {
+      "Id": "763408d9-67be-4cbb-8ca4-ff63c8f2e8b4",
+      "Command": "C:\\Users\\Adam\\Downloads\\akane\\akane\\mdl\\md_earShape.obj"
+    }
+  ]
+}
