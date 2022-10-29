@@ -146,7 +146,7 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 		for (int i = 0; i < attribs.size(); i++)
 		{
 			if (attribs[i].size() > vAttrib)
-				out << "vt " << attribs[i][uAttrib] << " " << attribs[i][vAttrib] << " " << (float)0.0f << std::endl;
+				out << "vt " << attribs[i][uAttrib] << " " << (1.0f - attribs[i][vAttrib]) << " " << (float)0.0f << std::endl;
 		}
 
 		out << std::endl;
