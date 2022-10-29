@@ -4,14 +4,15 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <filesystem>
 
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32")
 
 /*
 -BM = 
-
-
+-BSM =
+-BSMDir =
 */
 
 void BMgetIndices(std::ifstream& f, char* buffer, std::vector<int>& indices, size_t indiceSize = 2)
@@ -31,11 +32,11 @@ void BMgetIndices(std::ifstream& f, char* buffer, std::vector<int>& indices, siz
 		indice = *(short*)(buffer);
 		indices.push_back(indice);
 
-		std::cout << indice << std::endl;
+		//std::cout << indice << std::endl;
 	}
 }
 
-void BMgetAttributes(std::ifstream& f, char* buffer, std::vector<std::vector<float>>& vertAttribs, size_t attribCount = 8, size_t maxVerts = ~(0), size_t valSize = 4)
+void BMgetAttributes(std::ifstream& f, char* buffer, std::vector<std::vector<float>>& vertAttribs, size_t attribCount = 8, size_t maxVerts = NULL, size_t valSize = 4)
 {
 	vertAttribs.push_back(std::vector<float>());
 
@@ -45,7 +46,7 @@ void BMgetAttributes(std::ifstream& f, char* buffer, std::vector<std::vector<flo
 		bool newRow = vertAttribs.back().size() >= attribCount;
 		float attrib;
 
-		if (newRow && vertAttribs.size() >= maxVerts) { break; }
+		if (newRow && maxVerts && vertAttribs.size() >= maxVerts) { break; }
 
 		#define nextAttrib()\
 		f.read(buffer, valSize);\
@@ -53,7 +54,7 @@ void BMgetAttributes(std::ifstream& f, char* buffer, std::vector<std::vector<flo
 
 		nextAttrib();
 		if (isnan(attrib)) { continue; }
-		if (attrib == NULL) { if (nullSwitch) { break; } }
+		if (maxVerts == 0 && attrib == NULL) { if (nullSwitch) { break; } }
 		nullSwitch = attrib == NULL;
 
 		//Attribute row
@@ -72,14 +73,16 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 	std::ofstream out(argv[1]);
 	if (f.good() && out.good())
 	{
+		std::cout << "Reading dir " << argv[0] << "... \n";
+
 		// BM format details
-		static const size_t headerOffset = skinnedSwitch ? 16 : 8;
+		const size_t headerOffset = skinnedSwitch ? 16 : 8;
 		static const size_t vertOffset = 8;
 		static const size_t bufferSize = 8; //Max buffer size
 		static const size_t indiceSize = 2; //USHORT
 		static const size_t valSize = 4; //FLOAT
 		
-		static const size_t attribCount = skinnedSwitch ? 13 : 8;
+		const size_t attribCount = skinnedSwitch ? 13 : 8;
 		static const size_t xAttrib = 0;
 		static const size_t yAttrib = 1;
 		static const size_t zAttrib = 2;
@@ -99,11 +102,11 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 		memset(buffer, NULL, bufferSize);
 
 		//Data
-		int maxVertexCount = ~0;
+		int maxVertexCount = NULL;
 
 		//Skip header
 		f.seekg(headerOffset, SEEK_CUR);
-		
+
 		std::vector<int> indices;
 		std::vector<std::vector<float>> attribs;
 
@@ -136,7 +139,7 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 		// Write verts
 		for (int i = 0; i < attribs.size(); i++)
 		{
-			if(attribs[i].size() >= n0Attrib)
+			if (attribs[i].size() >= n0Attrib)
 				out << "v " << attribs[i][xAttrib] << " " << attribs[i][yAttrib] << " " << attribs[i][zAttrib] << std::endl;
 		}
 
@@ -152,16 +155,15 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 		out << std::endl;
 
 		// Its indices time!
-		for (int i = 0; i+2 < indices.size(); i+=3)
+		for (int i = 0; i + 2 < indices.size(); i += 3)
 		{
 			int i1 = indices[i] + 1;
-			int i2 = indices[i+1] + 1;
-			int i3 = indices[i+2] + 1;
+			int i2 = indices[i + 1] + 1;
+			int i3 = indices[i + 2] + 1;
 
 			out << "f " << i1 << "/" << i1 << " " << i2 << "/" << i2 << " " << i3 << "/" << i3 << std::endl;
 		}
 
-		//Write UVs
 	}
 	else
 	{
@@ -170,6 +172,44 @@ void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 
 	f.close();
 	out.close();
+}
+
+void BMDirFunc(int argc, char* argv[])
+{
+	if (argc < 2) { std::cout << "BM directory call with insufficient args \n"; return; }
+
+	namespace fs = std::filesystem;
+
+	std::string rootPath = argv[0];
+	for (auto it : fs::directory_iterator(rootPath))
+	{
+		if (!it.exists()) { std::cout << "Skipping invalid file " << it.path() << std::endl; }
+		
+		auto fileP = it.path().filename();
+		std::string fileLoc = it.path().string();
+		std::string exportFileName = argv[1] + fileP.filename().replace_extension(".obj").string();
+		std::string ext = fileP.extension().string();
+
+		char* newArgs[2];
+		newArgs[0] = fileLoc.data();
+		newArgs[1] = exportFileName.data();
+
+		bool hasHit = true;
+		//TODO maybe convert to lowercase
+		if (ext.compare(".bm") == 0)
+		{
+			BMfunc(2, newArgs, false);
+		}
+		else if (ext.compare(".bsm") == 0)
+		{
+			BMfunc(2, newArgs, true);
+		}
+		else
+		{
+			std::cout << "Skipping unknown extension " << it.path() << std::endl;
+			hasHit = false;
+		}
+	}
 }
 
 typedef std::function<void(int, char* [])> procFunc;
@@ -191,6 +231,7 @@ void populateProcs()
 {
 	processes.insert(std::make_pair("BM", [=](int argc, char* argv[]) {BMfunc(argc, argv, false); }));
 	processes.insert(std::make_pair("BSM", [=](int argc, char* argv[]) {BMfunc(argc, argv, true); }));
+	processes.insert(std::make_pair("BSMDir", &BMDirFunc));
 }
 
 int main(int argc, char* argv[])
