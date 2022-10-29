@@ -60,13 +60,13 @@ void BMgetAttributes(std::ifstream& f, char* buffer, std::vector<std::vector<flo
 		if (newRow) { vertAttribs.push_back(std::vector<float>()); }
 		vertAttribs.back().push_back(attrib);
 	}
+
+	std::cout << "There are " << vertAttribs.size() << " vertices! \n";
 }
 
-void BMfunc(int argc, char* argv[])
+void BMfunc(int argc, char* argv[], bool skinnedSwitch = false)
 {
 	if (argc < 2) { std::cout << "BM call with insufficient args \n"; return; }
-
-	bool skinnedSwitch = false; //TODO
 
 	std::ifstream f(argv[0], std::ios::binary);
 	std::ofstream out(argv[1]);
@@ -76,6 +76,7 @@ void BMfunc(int argc, char* argv[])
 		static const size_t headerOffset = skinnedSwitch ? 16 : 8;
 		static const size_t vertOffset = 8;
 		static const size_t bufferSize = 8; //Max buffer size
+		static const size_t indiceSize = 2; //USHORT
 		static const size_t valSize = 4; //FLOAT
 		
 		static const size_t attribCount = skinnedSwitch ? 13 : 8;
@@ -98,24 +99,39 @@ void BMfunc(int argc, char* argv[])
 		memset(buffer, NULL, bufferSize);
 
 		//Data
-		int indiceCount = -1;
 		int maxVertexCount = ~0;
 
 		//Skip header
 		f.seekg(headerOffset, SEEK_CUR);
 		
-		//Incides
 		std::vector<int> indices;
-		BMgetIndices(f, buffer, indices);
-
-		//Need to skip a value for some reason
-		f.seekg(valSize, SEEK_CUR);
-
-		//Attributes
 		std::vector<std::vector<float>> attribs;
-		BMgetAttributes(f, buffer, attribs, attribCount, ~0, valSize);
 
-		std::cout << "There are " << attribs.size() << " vertices! \n";
+		if (skinnedSwitch)
+		{
+			f.read(buffer, indiceSize * 2);
+			maxVertexCount = *(short*)(buffer);
+
+			//Attributes
+			BMgetAttributes(f, buffer, attribs, attribCount, maxVertexCount, valSize);
+
+			//Need to skip a value for some reason
+			f.seekg(valSize, SEEK_CUR);
+
+			//Indices
+			BMgetIndices(f, buffer, indices, indiceSize);
+		}
+		else
+		{
+			//Indices
+			BMgetIndices(f, buffer, indices, indiceSize);
+
+			//Need to skip a value for some reason
+			f.seekg(valSize, SEEK_CUR);
+
+			//Attributes
+			BMgetAttributes(f, buffer, attribs, attribCount, maxVertexCount, valSize);
+		}
 
 		// Write verts
 		for (int i = 0; i < attribs.size(); i++)
@@ -173,7 +189,8 @@ void helpFunc(const std::string& func)
 
 void populateProcs()
 {
-	processes.insert(std::make_pair("BM", &BMfunc));
+	processes.insert(std::make_pair("BM", [=](int argc, char* argv[]) {BMfunc(argc, argv, false); }));
+	processes.insert(std::make_pair("BSM", [=](int argc, char* argv[]) {BMfunc(argc, argv, true); }));
 }
 
 int main(int argc, char* argv[])
